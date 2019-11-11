@@ -7,17 +7,15 @@
 
 import Foundation
 
-// TODO: rename callback methods
-
 public enum TokenManagerError: Error {
   case noCredentials
   case loginCancelled
 }
 
-public typealias LoginCallback = (CallbackResult<Void, Error>) -> Void
-public typealias RequestResultCallback<T> = (CallbackResult<T, AuthError>) -> Void
-public typealias WithAccessTokenCallback<T> = (AccessToken, @escaping RequestResultCallback<T>) -> Void
-public typealias WithAccessCompletion<T> = (CallbackResult<T, AuthError>) -> Void
+public typealias LoginCallback = (Result<Void, Error>) -> Void
+public typealias RequestCompletion<T> = (Result<T, AuthError>) -> Void
+public typealias WithAccessTokenAction<T> = (AccessToken, @escaping RequestCompletion<T>) -> Void
+public typealias WithAccessTokenCompletion<T> = (Result<T, AuthError>) -> Void
 
 public protocol TokenManager {
   var delegate: TokenManagerDelegate? { get set }
@@ -25,7 +23,8 @@ public protocol TokenManager {
   func isLoggedIn() -> Bool
   func set(tokens: AuthTokens)
   func removeTokens()
-  func withAccessToken<T>(callback: @escaping WithAccessTokenCallback<T>, completion: @escaping WithAccessCompletion<T>)
+  func withAccessToken<T>(action: @escaping WithAccessTokenAction<T>,
+                          completion: @escaping WithAccessTokenCompletion<T>)
 }
 
 public enum LoginResult {
@@ -35,14 +34,17 @@ public enum LoginResult {
 }
 
 public typealias LoginCompletionHandler = (LoginResult) -> Void
-public typealias RefreshCompletionHandler = (CallbackResult<AuthTokens, AuthError>) -> Void
+public typealias RefreshCompletionHandler = (Result<AuthTokens, AuthError>) -> Void
 
 public protocol TokenManagerDelegate: class {
   /**
    This method will be called when the TokenManager needs new tokens.
    All calls with `withAccessToken` will be queued until `login` or `cancel` login will be called.
    */
-  func tokenManagerRequiresLogin(service: TokenManager, completion: @escaping LoginCompletionHandler)
+  func tokenManagerRequiresLogin(service: DefaultTokenManager,
+                                 completion: @escaping LoginCompletionHandler)
   
-  func tokenManagerRequiresRefresh(service: TokenManager, with token: RefreshToken, completion: @escaping RefreshCompletionHandler)
+  func tokenManagerRequiresRefresh(service: DefaultTokenManager,
+                                   with token: RefreshToken,
+                                   completion: @escaping RefreshCompletionHandler)
 }

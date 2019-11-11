@@ -7,7 +7,7 @@
 
 import Foundation
 
-public enum CallbackResult<T, E> {
+public enum Result<T, E> {
   case success(T)
   case error(E)
 }

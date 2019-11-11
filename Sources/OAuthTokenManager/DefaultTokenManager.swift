@@ -38,28 +38,28 @@ public class DefaultTokenManager: TokenManager {
   }
     
   public func withAccessToken<T>(
-    callback: @escaping WithAccessTokenCallback<T>,
-    completion: @escaping WithAccessCompletion<T>
+    action: @escaping WithAccessTokenAction<T>,
+    completion: @escaping WithAccessTokenCompletion<T>
   ) {
     guard !isAuthenticating else {
-      addToQueue(callback: callback, completion: completion)
+      addToQueue(callback: action, completion: completion)
       return
     }
     
     guard let accessToken = storage.accessToken else {
       // we're not authorized anymore, add the request to the queue and start authenticating
-      self.addToQueue(callback: callback, completion: completion)
+      self.addToQueue(callback: action, completion: completion)
       self.refreshAccessToken()
       return
     }
     
-    callback(accessToken) { [self] result in
+    action(accessToken) { [self] result in
       switch result {
       case .success(let value):
         completion(.success(value))
       case .error(.notAuthorized):
         // we're not authorized anymore, add the request to the queue and start authenticating
-        self.addToQueue(callback: callback, completion: completion)
+        self.addToQueue(callback: action, completion: completion)
         self.refreshAccessToken()
       case .error(let error):
         completion(.error(error))
@@ -80,8 +80,8 @@ public class DefaultTokenManager: TokenManager {
   }
 
   private func addToQueue<T>(
-    callback: @escaping WithAccessTokenCallback<T>,
-    completion: @escaping WithAccessCompletion<T>
+    callback: @escaping WithAccessTokenAction<T>,
+    completion: @escaping WithAccessTokenCompletion<T>
   ) {
     let queuedHandler: QueuedHandler = { (token, error) in
       if let token = token {
@@ -113,12 +113,11 @@ public class DefaultTokenManager: TokenManager {
       switch result {
       case .success(let tokens):
         self.set(tokens: tokens)
-      case .error(.notAuthorized):
-        // we need to request a login
+      case .error(.notAuthorized):        
         self.login()
       case .error(let error):
-        self.isAuthenticating = false
         self.handlePendingRequests(with: error)
+        self.isAuthenticating = false
       }
     }
   }
@@ -127,13 +126,11 @@ public class DefaultTokenManager: TokenManager {
     delegate?.tokenManagerRequiresLogin(service: self) { [self] result in
       switch result {
       case .success(let tokens):
-        self.storage.tokens = tokens
-        self.handlePendingRequests(with: tokens.accessToken)
+        self.set(tokens: tokens)
       case .cancelled:
         self.isAuthenticating = false
         self.handlePendingRequests(with: TokenManagerError.loginCancelled)
       case .error(let error):
-        // TODO: willen we hier de error mee sturen?
         self.isAuthenticating = false
         self.handlePendingRequests(with: error)
       }
