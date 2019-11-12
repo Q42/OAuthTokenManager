@@ -7,14 +7,20 @@
 
 import Foundation
 
-open class TokenManager<AccessToken, RefreshToken> {
-  typealias QueuedHandler = (AccessToken?, Error?) -> Void
+open class TokenManager<AccessToken, RefreshToken, Failure: Error> {
+  typealias QueuedHandler = (AccessToken?, AuthError<Failure>?) -> Void
   
-  public typealias LoginCompletionHandler = (LoginResult<AccessToken, RefreshToken>) -> Void
-  public typealias RefreshCompletionHandler = (RefreshResult<AccessToken, RefreshToken>) -> Void
-  public typealias ActionCompletionHandler<T, E: AuthError> = (Result<T, E>) -> Void
-  public typealias WithAccessTokenAction<T, E: AuthError> = (AccessToken, @escaping ActionCompletionHandler<T, E>) -> Void
-  public typealias WithAccessTokenCompletionHandler<T, E: Error> = (ActionResult<T, E>) -> Void
+  public typealias ErrorType = AuthError<Failure>
+    
+  public typealias ActionResult<Success> = Swift.Result<Success, ErrorType>
+  public typealias RefreshResult = Swift.Result<(AccessToken, RefreshToken), ErrorType>
+  public typealias LoginResult = Swift.Result<(AccessToken, RefreshToken), ErrorType>
+  
+  public typealias LoginCompletionHandler = (LoginResult) -> Void
+  public typealias RefreshCompletionHandler = (RefreshResult) -> Void
+  public typealias ActionCallback<Success> = (ActionResult<Success>) -> Void
+  public typealias Action<Success> = (AccessToken, @escaping ActionCallback<Success>) -> Void
+  public typealias ActionCompletionHandler<Success> = (ActionResult<Success>) -> Void
 
   /** Will be called whenever the tokens update */
   public var didUpdateTokens: ((AccessToken?, RefreshToken?) -> Void)?
@@ -57,12 +63,12 @@ open class TokenManager<AccessToken, RefreshToken> {
     accessToken = nil
     refreshToken = nil
     didUpdateTokens?(nil, nil)
-    handlePendingRequests(with: TokenManagerError.noCredentials)
+    handlePendingRequests(with: .noCredentials)
   }
     
-  public func withAccessToken<T, E>(
-    action: @escaping WithAccessTokenAction<T, E>,
-    completion: @escaping WithAccessTokenCompletionHandler<T, E>
+  public func withAccessToken<Success>(
+    action: @escaping Action<Success>,
+    completion: @escaping ActionCompletionHandler<Success>
   ) {
     guard !isAuthenticating else {
       addToQueue(action: action, completion: completion)
@@ -80,14 +86,14 @@ open class TokenManager<AccessToken, RefreshToken> {
       switch result {
       case .success(let value):
         completion(.success(value))
-      case let .error(error) where error.isUnauthorized:
+      case .failure(.unauthorized):
         // we're not authorized anymore, add the request to the queue and start authenticating
         self.accessToken = nil
         self.didUpdateTokens?(self.accessToken, self.refreshToken)
         self.addToQueue(action: action, completion: completion)
         self.refreshAccessToken()
-      case .error(let error):
-        completion(.error(.error(error)))
+      case .failure(let error):
+        completion(.failure(error))
       }
     }
   }
@@ -98,15 +104,15 @@ open class TokenManager<AccessToken, RefreshToken> {
     items.forEach { $0(token, nil) }
   }
     
-  private func handlePendingRequests(with error: Error) {
+  private func handlePendingRequests(with error: ErrorType) {
     let items = Array(pendingRequests)
     pendingRequests.removeAll()
     items.forEach { $0(nil, error) }
   }
 
-  private func addToQueue<T, E>(
-    action: @escaping WithAccessTokenAction<T, E>,
-    completion: @escaping WithAccessTokenCompletionHandler<T, E>
+  private func addToQueue<Success>(
+    action: @escaping Action<Success>,
+    completion: @escaping ActionCompletionHandler<Success>
   ) {
     let queuedHandler: QueuedHandler = { (token, error) in
       if let token = token {
@@ -114,12 +120,12 @@ open class TokenManager<AccessToken, RefreshToken> {
           switch result {
           case .success(let value):
             completion(.success(value))
-          case .error(let error):
-            completion(.error(.error(error)))
+          case .failure(let error):
+            completion(.failure(error))
           }
         }
       } else if let error = error {
-        completion(.error(.other(error)))
+        completion(.failure(error))
       }
     }
     pendingRequests.append(queuedHandler)
@@ -138,12 +144,12 @@ open class TokenManager<AccessToken, RefreshToken> {
       switch result {
       case .success(let tokens):
         self.set(accessToken: tokens.0, refreshToken: tokens.1)
-      case let .error(error) where error.isUnauthorized:
+      case .failure(.unauthorized):
         self.accessToken = nil
         self.refreshToken = nil
         self.didUpdateTokens?(nil, nil)
         self.login()
-      case .error(let error):
+      case .failure(let error):
         self.handlePendingRequests(with: error)
         self.isAuthenticating = false
       }
@@ -155,10 +161,10 @@ open class TokenManager<AccessToken, RefreshToken> {
       switch result {
       case .success(let tokens):
         self.set(accessToken: tokens.0, refreshToken: tokens.1)
-      case .cancelled:
+      case .failure(.loginCancelled):
         self.isAuthenticating = false
-        self.handlePendingRequests(with: TokenManagerError.loginCancelled)
-      case .error(let error):
+        self.handlePendingRequests(with: .loginCancelled)
+      case let .failure(error):
         self.isAuthenticating = false
         self.handlePendingRequests(with: error)
       }
