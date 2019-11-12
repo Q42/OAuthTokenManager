@@ -16,7 +16,11 @@ struct RefreshToken {
   let token: String  
 }
 
-let tokenManager = TokenManager<AccessToken, RefreshToken>(
+// Subclass the TokenManager
+
+class MyTokenManager: TokenManager<AccessToken, RefreshToken {}
+
+let tokenManager = MyTokenManager(
   accessToken: nil,
   refreshToken: nil,
 )

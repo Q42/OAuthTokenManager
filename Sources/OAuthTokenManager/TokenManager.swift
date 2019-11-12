@@ -7,7 +7,7 @@
 
 import Foundation
 
-public class TokenManager<AccessToken, RefreshToken> {
+open class TokenManager<AccessToken, RefreshToken> {
   typealias QueuedHandler = (AccessToken?, Error?) -> Void
   
   public typealias LoginCompletionHandler = (LoginResult<AccessToken, RefreshToken>) -> Void
