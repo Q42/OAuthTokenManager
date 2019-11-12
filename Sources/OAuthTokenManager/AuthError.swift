@@ -7,7 +7,6 @@
 
 import Foundation
 
-public enum AuthError: Error {
-  case notAuthorized
-  case other(Error)
+public protocol AuthError: Error {
+  var isUnauthorized: Bool { get }
 }
