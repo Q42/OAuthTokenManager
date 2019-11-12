@@ -82,6 +82,8 @@ open class TokenManager<AccessToken, RefreshToken> {
         completion(.success(value))
       case let .error(error) where error.isUnauthorized:
         // we're not authorized anymore, add the request to the queue and start authenticating
+        self.accessToken = nil
+        self.didUpdateTokens?(self.accessToken, self.refreshToken)
         self.addToQueue(action: action, completion: completion)
         self.refreshAccessToken()
       case .error(let error):
@@ -137,6 +139,9 @@ open class TokenManager<AccessToken, RefreshToken> {
       case .success(let tokens):
         self.set(accessToken: tokens.0, refreshToken: tokens.1)
       case let .error(error) where error.isUnauthorized:
+        self.accessToken = nil
+        self.refreshToken = nil
+        self.didUpdateTokens?(nil, nil)
         self.login()
       case .error(let error):
         self.handlePendingRequests(with: error)
