@@ -40,33 +40,31 @@ final class OAuthTokenManagerTests: XCTestCase {
     let didUpdateTokens2Expec = expectation(description: "didUpdateTokens second")
     let didRequireRefreshExpec = expectation(description: "didRequireRefresh")
     
+    let newAccessToken = "atoken-2"
+    let newRefreshToken = "rtoken-2"
+    
     manager.didRequireRefresh = { (refreshToken, completion) in
       XCTAssertEqual(refreshToken, self.initialRefreshToken)
       completion(.success(("atoken-2", "rtoken-2")))
       didRequireRefreshExpec.fulfill()
     }
     
-    // should be called after we have new tokens
-    let didUpdateTokensCallback2: (AccessToken?, RefreshToken?) -> Void = { (accessToken, refreshToken) in
-      XCTAssertEqual(accessToken, "atoken-2")
-      XCTAssertEqual(refreshToken, "rtoken-2")
-      didUpdateTokens2Expec.fulfill()
+    manager.didUpdateTokens = { (accessToken, refreshToken) in
+      if accessToken == nil {
+        // should be called after the access token has been invalidated
+        XCTAssertEqual(refreshToken, self.initialRefreshToken)
+        didUpdateTokens1Expec.fulfill()
+      } else if accessToken == newAccessToken {
+        // should be called after we have new tokens
+        XCTAssertEqual(refreshToken, newRefreshToken)
+        didUpdateTokens2Expec.fulfill()
+      }
     }
-    
-    // should be called after the access token has been invalidated
-    let didUpdateTokensCallback1: (AccessToken?, RefreshToken?) -> Void = { (accessToken, refreshToken) in
-      XCTAssertEqual(accessToken, nil)
-      XCTAssertEqual(refreshToken, "rtoken-1")
-      self.manager.didUpdateTokens = didUpdateTokensCallback2
-      didUpdateTokens1Expec.fulfill()
-    }
-       
-    manager.didUpdateTokens = didUpdateTokensCallback1
      
     manager.withAccessToken(action: { (accessToken, callback ) in
-      if accessToken == "atoken-1" {
+      if accessToken == self.initialAccessToken {
         callback(.failure(.unauthorized))
-      } else if accessToken == "atoken-2" {
+      } else if accessToken == newAccessToken {
         callback(.success(1))
       }
     }, completion: { (result: Result<MockResult, AuthError<MockError>>) in
