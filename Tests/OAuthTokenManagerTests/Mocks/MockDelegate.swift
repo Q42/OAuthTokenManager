@@ -14,13 +14,13 @@ final class MockDelegate: TokenManagerDelegate {
   
   typealias ExpectationGenerator = (String) -> XCTestExpectation
   
-  typealias UpdateTokenAssertion = (String?, String?) -> Void
-  typealias RequiresRefreshAssertion = (RefreshToken) -> RefreshResult
-  typealias RequiresLoginAssertion = () -> LoginResult
+  typealias UpdateTokenHandler = (String?, String?) -> Void
+  typealias RequiresRefreshHandler = (RefreshToken) -> RefreshResult
+  typealias RequiresLoginHandler = () -> LoginResult
   
-  private var updateTokenHandlers: [(UpdateTokenAssertion, XCTestExpectation)] = []
-  private var requiresRefreshHandlers: [(RequiresRefreshAssertion, XCTestExpectation)] = []
-  private var requiresLoginHandlers: [(RequiresLoginAssertion, XCTestExpectation)] = []
+  private var updateTokenHandlers: [(UpdateTokenHandler, XCTestExpectation)] = []
+  private var requiresRefreshHandlers: [(RequiresRefreshHandler, XCTestExpectation)] = []
+  private var requiresLoginHandlers: [(RequiresLoginHandler, XCTestExpectation)] = []
   
   private let expectation: ExpectationGenerator
   
@@ -30,20 +30,20 @@ final class MockDelegate: TokenManagerDelegate {
   
   var allExpectations: [XCTestExpectation] = []
   
-  func addHandlerForUpdateToken(description: String, handler: @escaping UpdateTokenAssertion) {
+  func addHandlerForUpdateToken(description: String, handler: @escaping UpdateTokenHandler) {
     let expec = expectation(description)
     updateTokenHandlers.append((handler, expec))
     allExpectations.append(expec)
   }
   
-  func addHandlerForRequireLogin(description: String, handler: @escaping RequiresLoginAssertion
+  func addHandlerForRequireLogin(description: String, handler: @escaping RequiresLoginHandler
   ) {
     let expec = expectation(description)
     requiresLoginHandlers.append((handler, expec))
     allExpectations.append(expec)
   }
   
-  func addHandlerForRequireRefresh(description: String, handler: @escaping RequiresRefreshAssertion) {
+  func addHandlerForRequireRefresh(description: String, handler: @escaping RequiresRefreshHandler) {
     let expec = expectation(description)
     requiresRefreshHandlers.append((handler, expec))
     allExpectations.append(expec)
