@@ -7,34 +7,21 @@
 
 import Foundation
 
-open class TokenManager<AccessToken, RefreshToken, Failure: Error> {
+open class TokenManager<Delegate: TokenManagerDelegate> {
+  public typealias AccessToken = Delegate.AccessToken
+  public typealias RefreshToken = Delegate.RefreshToken
+  public typealias Failure = Delegate.Failure
+  
   typealias QueuedHandler = (AccessToken?, AuthError<Failure>?) -> Void
   
   public typealias ErrorType = AuthError<Failure>
-    
   public typealias ActionResult<Success> = Swift.Result<Success, ErrorType>
-  public typealias RefreshResult = Swift.Result<(AccessToken, RefreshToken), ErrorType>
-  public typealias LoginResult = Swift.Result<(AccessToken, RefreshToken), ErrorType>
-  
-  public typealias LoginCompletionHandler = (LoginResult) -> Void
-  public typealias RefreshCompletionHandler = (RefreshResult) -> Void
   public typealias ActionCallback<Success> = (ActionResult<Success>) -> Void
   public typealias Action<Success> = (AccessToken, @escaping ActionCallback<Success>) -> Void
   public typealias ActionCompletionHandler<Success> = (ActionResult<Success>) -> Void
+  
+  public weak var delegate: Delegate?
 
-  /** Will be called whenever the tokens update */
-  public var didUpdateTokens: ((AccessToken?, RefreshToken?) -> Void)?
-  
-  /**
-   This method will be called when the `withAccessToken` was called but there were no tokens or when the refreshToken is invalid.
-   You should present a Login screen for the user and call the completion handler.
-   All actions with `withAccessToken` will be queued until the completion handler is called with a result
-   */
-  public var didRequireLogin: ((@escaping LoginCompletionHandler) -> Void)?
-  
-  /** The accessToken needs to be refreshed */
-  public var didRequireRefresh: ((RefreshToken, @escaping RefreshCompletionHandler) -> Void)?
-    
   // TODO: Fix multithreading
   private var pendingRequests: [QueuedHandler] = []
   private var isAuthenticating: Bool = false
@@ -54,7 +41,7 @@ open class TokenManager<AccessToken, RefreshToken, Failure: Error> {
   public func set(accessToken: AccessToken, refreshToken: RefreshToken) {
     self.accessToken = accessToken
     self.refreshToken = refreshToken
-    didUpdateTokens?(accessToken, refreshToken)
+    delegate?.tokenManagerDidUpdateTokens(manager: self, accessToken: self.accessToken, refreshToken: self.refreshToken)
     isAuthenticating = false
     handlePendingRequests(with: accessToken)
   }
@@ -62,7 +49,7 @@ open class TokenManager<AccessToken, RefreshToken, Failure: Error> {
   public func removeTokens() {    
     accessToken = nil
     refreshToken = nil
-    didUpdateTokens?(nil, nil)
+    delegate?.tokenManagerDidUpdateTokens(manager: self, accessToken: self.accessToken, refreshToken: self.refreshToken)
     handlePendingRequests(with: .noCredentials)
   }
     
@@ -89,7 +76,7 @@ open class TokenManager<AccessToken, RefreshToken, Failure: Error> {
       case .failure(.unauthorized):
         // we're not authorized anymore, add the request to the queue and start authenticating
         self.accessToken = nil
-        self.didUpdateTokens?(self.accessToken, self.refreshToken)
+        self.delegate?.tokenManagerDidUpdateTokens(manager: self, accessToken: self.accessToken, refreshToken: self.refreshToken)
         self.addToQueue(action: action, completion: completion)
         self.refreshAccessToken()
       case .failure(let error):
@@ -140,14 +127,14 @@ open class TokenManager<AccessToken, RefreshToken, Failure: Error> {
       return;
     }
         
-    didRequireRefresh?(refreshToken) { result in
+    delegate?.tokenManagerRequiresRefresh(manager: self, refreshToken: refreshToken) { result in
       switch result {
       case .success(let tokens):
         self.set(accessToken: tokens.0, refreshToken: tokens.1)
       case .failure(.unauthorized):
         self.accessToken = nil
         self.refreshToken = nil
-        self.didUpdateTokens?(nil, nil)
+        self.delegate?.tokenManagerDidUpdateTokens(manager: self, accessToken: self.accessToken, refreshToken: self.refreshToken)
         self.login()
       case .failure(let error):
         self.handlePendingRequests(with: error)
@@ -157,7 +144,7 @@ open class TokenManager<AccessToken, RefreshToken, Failure: Error> {
   }
   
   private func login() {
-    self.didRequireLogin?() { [self] result in
+    delegate?.tokenManagerRequiresLogin(manager: self) { [self] result in
       switch result {
       case .success(let tokens):
         self.set(accessToken: tokens.0, refreshToken: tokens.1)
