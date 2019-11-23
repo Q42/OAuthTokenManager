@@ -10,12 +10,10 @@ import Foundation
 open class TokenManager<Delegate: TokenManagerDelegate> {
   public typealias AccessToken = Delegate.AccessToken
   public typealias RefreshToken = Delegate.RefreshToken
-  public typealias Failure = Delegate.Failure
-  
-  typealias QueuedHandler = (AccessToken?, AuthError<Failure>?) -> Void
-  
-  public typealias ErrorType = AuthError<Failure>
-  public typealias ActionResult<Success> = Swift.Result<Success, ErrorType>
+
+  typealias QueuedHandler = (Result<AccessToken, AuthError>) -> Void
+
+  public typealias ActionResult<Success> = Swift.Result<Success, AuthError>
   public typealias ActionCallback<Success> = (ActionResult<Success>) -> Void
   public typealias Action<Success> = (AccessToken, @escaping ActionCallback<Success>) -> Void
   public typealias ActionCompletionHandler<Success> = (ActionResult<Success>) -> Void
@@ -41,7 +39,7 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
   public func set(accessToken: AccessToken, refreshToken: RefreshToken) {
     self.accessToken = accessToken
     self.refreshToken = refreshToken
-    delegate?.tokenManagerDidUpdateTokens(manager: self, accessToken: self.accessToken, refreshToken: self.refreshToken)
+    delegate?.tokenManagerDidUpdateTokens(accessToken: self.accessToken, refreshToken: self.refreshToken)
     isAuthenticating = false
     handlePendingRequests(with: accessToken)
   }
@@ -49,7 +47,7 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
   public func removeTokens() {    
     accessToken = nil
     refreshToken = nil
-    delegate?.tokenManagerDidUpdateTokens(manager: self, accessToken: self.accessToken, refreshToken: self.refreshToken)
+    delegate?.tokenManagerDidUpdateTokens(accessToken: self.accessToken, refreshToken: self.refreshToken)
     handlePendingRequests(with: .noCredentials)
   }
     
@@ -76,7 +74,7 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
       case .failure(.unauthorized):
         // we're not authorized anymore, add the request to the queue and start authenticating
         self.accessToken = nil
-        self.delegate?.tokenManagerDidUpdateTokens(manager: self, accessToken: self.accessToken, refreshToken: self.refreshToken)
+        self.delegate?.tokenManagerDidUpdateTokens(accessToken: self.accessToken, refreshToken: self.refreshToken)
         self.addToQueue(action: action, completion: completion)
         self.refreshAccessToken()
       case .failure(let error):
@@ -88,30 +86,24 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
   private func handlePendingRequests(with token: AccessToken) {
     let items = Array(pendingRequests)
     pendingRequests.removeAll()
-    items.forEach { $0(token, nil) }
+    items.forEach { $0(.success(token)) }
   }
     
-  private func handlePendingRequests(with error: ErrorType) {
+  private func handlePendingRequests(with error: AuthError) {
     let items = Array(pendingRequests)
     pendingRequests.removeAll()
-    items.forEach { $0(nil, error) }
+    items.forEach { $0(.failure(error)) }
   }
 
   private func addToQueue<Success>(
     action: @escaping Action<Success>,
     completion: @escaping ActionCompletionHandler<Success>
   ) {
-    let queuedHandler: QueuedHandler = { (token, error) in
-      if let token = token {
-        action(token) { result in
-          switch result {
-          case .success(let value):
-            completion(.success(value))
-          case .failure(let error):
-            completion(.failure(error))
-          }
-        }
-      } else if let error = error {
+    let queuedHandler: QueuedHandler = { result in
+      switch result {
+      case let .success(token):
+        action(token) { completion($0) }
+      case let .failure(error):
         completion(.failure(error))
       }
     }
@@ -127,14 +119,14 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
       return;
     }
         
-    delegate?.tokenManagerRequiresRefresh(manager: self, refreshToken: refreshToken) { result in
+    delegate?.tokenManagerRequiresRefresh(refreshToken: refreshToken) { result in
       switch result {
       case .success(let tokens):
         self.set(accessToken: tokens.0, refreshToken: tokens.1)
       case .failure(.unauthorized):
         self.accessToken = nil
         self.refreshToken = nil
-        self.delegate?.tokenManagerDidUpdateTokens(manager: self, accessToken: self.accessToken, refreshToken: self.refreshToken)
+        self.delegate?.tokenManagerDidUpdateTokens(accessToken: self.accessToken, refreshToken: self.refreshToken)
         self.login()
       case .failure(let error):
         self.handlePendingRequests(with: error)
@@ -144,7 +136,7 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
   }
   
   private func login() {
-    delegate?.tokenManagerRequiresLogin(manager: self) { [self] result in
+    delegate?.tokenManagerRequiresLogin { [self] result in
       switch result {
       case .success(let tokens):
         self.set(accessToken: tokens.0, refreshToken: tokens.1)

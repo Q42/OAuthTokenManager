@@ -55,7 +55,7 @@ final class OAuthTokenManagerTests: XCTestCase {
       } else if accessToken == newAccessToken {
         callback(.success(1))
       }
-    }, completion: { (result: Result<MockResult, AuthError<MockError>>) in
+    }, completion: { (result: Result<MockResult, AuthError>) in
       XCTAssertEqual(try? result.get(), 1)
       expec.fulfill()
     })

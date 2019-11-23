@@ -7,9 +7,9 @@
 
 import Foundation
 
-public enum AuthError<Failure: Error>: Error {
+public enum AuthError: Error {
   case unauthorized
   case noCredentials
   case loginCancelled
-  case other(Failure)
+  case other(Error)
 }

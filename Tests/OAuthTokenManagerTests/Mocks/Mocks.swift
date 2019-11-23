@@ -13,4 +13,4 @@ enum MockError: Error {
 typealias AccessToken = String
 typealias RefreshToken = String
 typealias MockResult = Int
-typealias ActionResult = Result<MockResult, AuthError<MockError>>
+typealias ActionResult = Result<MockResult, AuthError>
