@@ -16,10 +16,12 @@ final class MockDelegate: TokenManagerDelegate {
   typealias UpdateTokenHandler = (String?, String?) -> Void
   typealias RequiresRefreshHandler = (RefreshToken) -> RefreshResult
   typealias RequiresLoginHandler = () -> LoginResult
+  typealias ShouldExpireHandler = (AccessToken) -> Bool
   
   private var updateTokenHandlers: [(UpdateTokenHandler, XCTestExpectation)] = []
   private var requiresRefreshHandlers: [(RequiresRefreshHandler, XCTestExpectation)] = []
   private var requiresLoginHandlers: [(RequiresLoginHandler, XCTestExpectation)] = []
+  private var shouldExpireHandlers: [(ShouldExpireHandler, XCTestExpectation)] = []
   
   private let expectation: ExpectationGenerator
   
@@ -47,6 +49,12 @@ final class MockDelegate: TokenManagerDelegate {
     requiresRefreshHandlers.append((handler, expec))
     allExpectations.append(expec)
   }
+
+  func addHandlerForShouldExpire(description: String, handler: @escaping ShouldExpireHandler) {
+    let expec = expectation(description)
+    shouldExpireHandlers.append((handler, expec))
+    allExpectations.append(expec)
+  }
   
   func tokenManagerDidUpdateTokens(accessToken: AccessToken?, refreshToken: RefreshToken?) {
     guard let (handler, expec) = updateTokenHandlers.first else {
@@ -66,12 +74,22 @@ final class MockDelegate: TokenManagerDelegate {
     expec.fulfill()
   }
   
-  func tokenManagerRequiresRefresh(refreshToken: String, completion: @escaping RefreshCompletionHandler) {
+  func tokenManagerRequiresRefresh(refreshToken: RefreshToken, completion: @escaping RefreshCompletionHandler) {
     guard let (handler, expec) = requiresRefreshHandlers.first else {
       return XCTFail("No handler for tokenManagerRequiresRefresh. Been called too many times")
     }
     _ = requiresRefreshHandlers.removeFirst()
     completion(handler(refreshToken))
     expec.fulfill()
+  }
+
+  func tokenManagerShouldTokenExpire(accessToken: AccessToken) -> Bool {
+    guard let (handler, expec) = shouldExpireHandlers.first else {
+      XCTFail("No handler for shouldExpireHandler. Been called too many times")
+      return false
+    }
+    _ = shouldExpireHandlers.removeFirst()
+    expec.fulfill()
+    return handler(accessToken)
   }
 }

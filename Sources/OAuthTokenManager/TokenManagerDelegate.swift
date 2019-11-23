@@ -28,4 +28,7 @@ public protocol TokenManagerDelegate: class {
   
   /** The accessToken needs to be refreshed */
   func tokenManagerRequiresRefresh(refreshToken: RefreshToken, completion: @escaping RefreshCompletionHandler)
+
+  /** Return true if the token should be considered as expired **/
+  func tokenManagerShouldTokenExpire(accessToken: AccessToken) -> Bool
 }

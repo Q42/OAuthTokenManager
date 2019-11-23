@@ -36,7 +36,7 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
     refreshToken != nil
   }
   
-  public func set(accessToken: AccessToken, refreshToken: RefreshToken) {
+  public func setRefreshedTokens(accessToken: AccessToken, refreshToken: RefreshToken) {
     self.accessToken = accessToken
     self.refreshToken = refreshToken
     delegate?.tokenManagerDidUpdateTokens(accessToken: self.accessToken, refreshToken: self.refreshToken)
@@ -55,28 +55,40 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
     action: @escaping Action<Success>,
     completion: @escaping ActionCompletionHandler<Success>
   ) {
+    guard let delegate = delegate else {
+      return print("OAuthTokenManager: No delegate has been set")
+    }
+
     guard !isAuthenticating else {
       addToQueue(action: action, completion: completion)
       return
     }
-    
+
     guard let accessToken = accessToken else {
       // we're not authorized anymore, add the request to the queue and start authenticating
       self.addToQueue(action: action, completion: completion)
       self.refreshAccessToken()
       return
     }
+
+    func onTokenExpired() {
+      // we're not authorized anymore, add the request to the queue and start authenticating
+      self.accessToken = nil
+      self.delegate?.tokenManagerDidUpdateTokens(accessToken: self.accessToken, refreshToken: self.refreshToken)
+      self.addToQueue(action: action, completion: completion)
+      self.refreshAccessToken()
+    }
+
+    guard !delegate.tokenManagerShouldTokenExpire(accessToken: accessToken) else {
+      return onTokenExpired()
+    }
     
-    action(accessToken) { [self] result in
+    action(accessToken) { result in
       switch result {
       case .success(let value):
         completion(.success(value))
       case .failure(.unauthorized):
-        // we're not authorized anymore, add the request to the queue and start authenticating
-        self.accessToken = nil
-        self.delegate?.tokenManagerDidUpdateTokens(accessToken: self.accessToken, refreshToken: self.refreshToken)
-        self.addToQueue(action: action, completion: completion)
-        self.refreshAccessToken()
+        onTokenExpired()
       case .failure(let error):
         completion(.failure(error))
       }
@@ -115,14 +127,13 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
     isAuthenticating = true
     
     guard let refreshToken = refreshToken else {
-      self.login()
-      return;
+      return self.login()
     }
         
     delegate?.tokenManagerRequiresRefresh(refreshToken: refreshToken) { result in
       switch result {
       case .success(let tokens):
-        self.set(accessToken: tokens.0, refreshToken: tokens.1)
+        self.setRefreshedTokens(accessToken: tokens.0, refreshToken: tokens.1)
       case .failure(.unauthorized):
         self.accessToken = nil
         self.refreshToken = nil
@@ -139,7 +150,7 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
     delegate?.tokenManagerRequiresLogin { [self] result in
       switch result {
       case .success(let tokens):
-        self.set(accessToken: tokens.0, refreshToken: tokens.1)
+        self.setRefreshedTokens(accessToken: tokens.0, refreshToken: tokens.1)
       case .failure(.loginCancelled):
         self.isAuthenticating = false
         self.handlePendingRequests(with: .loginCancelled)
