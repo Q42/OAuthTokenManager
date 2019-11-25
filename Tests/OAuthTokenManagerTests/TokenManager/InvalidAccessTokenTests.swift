@@ -140,7 +140,7 @@ final class InvalidAccessTokenTests: XCTestCase {
   }
 
   func testInvalidAccessTokenWithMultipleCalls() {
-    let withAccessExpect1 = expectation(description: "completed withAccessToken #2")
+    let withAccessExpect1 = expectation(description: "completed withAccessToken #1")
     let withAccessExpect2 = expectation(description: "completed withAccessToken #2")
 
     // we mark the first access token as expired
@@ -184,6 +184,64 @@ final class InvalidAccessTokenTests: XCTestCase {
     })
 
     wait(for: delegate.allExpectations + [withAccessExpect1, withAccessExpect2], timeout: 5)
+  }
+
+
+  func testMultipleCallsOnOtherThread() {
+    let withAccessExpect1 = expectation(description: "completed withAccessToken #1")
+    let withAccessExpect2 = expectation(description: "completed withAccessToken #2")
+
+    // we mark the first access token as expired
+    delegate.addHandlerForShouldExpire(description: "Should not expire") { (accessToken) in
+      return true
+    }
+
+    // we expect that the access token is removed and the refresh token is still the same
+    delegate.addHandlerForUpdateToken(description: "Remove accesstoken") { (accessToken, refreshToken) in
+      XCTAssertEqual(accessToken, nil)
+      XCTAssertEqual(refreshToken, self.initialRefreshToken)
+    }
+
+    // our refresh call returns a new token
+    // should only be called once
+    delegate.addHandlerForRequireRefresh(description: "refresh token") { refreshToken in
+      XCTAssertEqual(refreshToken, self.initialRefreshToken)
+      return .success((self.newAccessToken, self.newRefreshToken))
+    }
+
+    // we expect that the tokens are updated
+    delegate.addHandlerForUpdateToken(description: "Received updated tokens") { (accessToken, refreshToken) in
+      XCTAssertEqual(accessToken, self.newAccessToken)
+      XCTAssertEqual(refreshToken, self.newRefreshToken)
+    }
+
+    DispatchQueue.global().async {
+      self.manager.withAccessToken(action: { (accessToken, callback ) in
+        XCTAssertTrue(Thread.isMainThread)
+        DispatchQueue.global().async {
+          callback(.success(1))
+        }
+      }, completion: { (result: ActionResult) in
+        XCTAssertTrue(Thread.isMainThread)
+        XCTAssertEqual(try? result.get(), 1)
+        withAccessExpect1.fulfill()
+      })
+    }
+
+    DispatchQueue.global().async {
+      self.manager.withAccessToken(action: { (accessToken, callback ) in
+        XCTAssertTrue(Thread.isMainThread)
+        DispatchQueue.global().async {
+          callback(.success(2))
+        }
+      }, completion: { (result: ActionResult) in
+        XCTAssertTrue(Thread.isMainThread)
+        XCTAssertEqual(try? result.get(), 2)
+        withAccessExpect2.fulfill()
+      })
+    }
+
+    wait(for: [withAccessExpect1, withAccessExpect2] + delegate.allExpectations, timeout: 5)
   }
 }
 

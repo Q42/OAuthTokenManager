@@ -96,13 +96,15 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
       }
 
       action(accessToken) { result in
-        switch result {
-        case .success(let value):
-          completion(.success(value))
-        case .failure(.unauthorized):
-          onTokenExpired()
-        case .failure(let error):
-          completion(.failure(error))
+        runOnMainAsync {
+          switch result {
+          case .success(let value):
+            completion(.success(value))
+          case .failure(.unauthorized):
+            onTokenExpired()
+          case .failure(let error):
+            completion(.failure(error))
+          }
         }
       }
     }
@@ -132,7 +134,11 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
       let queuedHandler: QueuedHandler = { result in
         switch result {
         case let .success(token):
-          action(token) { completion($0) }
+          action(token) { actionResult in
+            runOnMainAsync {
+              completion(actionResult)
+            }
+          }
         case let .failure(error):
           completion(.failure(error))
         }

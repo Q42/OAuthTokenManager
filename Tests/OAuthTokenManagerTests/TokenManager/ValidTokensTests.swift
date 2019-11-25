@@ -72,4 +72,23 @@ final class ValidTokensTests: XCTestCase {
 
     wait(for: [expec] + delegate.allExpectations, timeout: 5)
   }
+
+  func testActionOnOtherThread() {
+    let expec = expectation(description: "completed")
+
+    DispatchQueue.global().async {
+      self.manager.withAccessToken(action: { (accessToken, callback ) in
+        XCTAssertTrue(Thread.isMainThread)
+        DispatchQueue.global().async {
+          callback(.success(1))
+        }
+      }, completion: { (result: ActionResult) in
+        XCTAssertTrue(Thread.isMainThread)
+        XCTAssertEqual(try? result.get(), 1)
+        expec.fulfill()
+      })
+    }
+
+    wait(for: [expec] + delegate.allExpectations, timeout: 5)
+  }
 }
