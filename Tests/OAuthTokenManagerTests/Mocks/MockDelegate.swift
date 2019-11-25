@@ -70,8 +70,11 @@ final class MockDelegate: TokenManagerDelegate {
       return XCTFail("No handler for tokenManagerRequiresLogin. Been called too many times")
     }
     _ = requiresLoginHandlers.removeFirst()
-    completion(handler())
-    expec.fulfill()
+
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+      completion(handler())
+      expec.fulfill()
+    }
   }
   
   func tokenManagerRequiresRefresh(refreshToken: RefreshToken, completion: @escaping RefreshCompletionHandler) {
@@ -79,8 +82,11 @@ final class MockDelegate: TokenManagerDelegate {
       return XCTFail("No handler for tokenManagerRequiresRefresh. Been called too many times")
     }
     _ = requiresRefreshHandlers.removeFirst()
-    completion(handler(refreshToken))
-    expec.fulfill()
+
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+      completion(handler(refreshToken))
+      expec.fulfill()
+    }
   }
 
   func tokenManagerShouldTokenExpire(accessToken: AccessToken) -> Bool {

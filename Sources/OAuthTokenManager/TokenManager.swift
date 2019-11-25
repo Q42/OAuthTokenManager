@@ -43,9 +43,19 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
     isAuthenticating = false
     handlePendingRequests(with: accessToken)
   }
-  
-  public func removeTokens() {    
+
+  public func removeAccessToken() {
     accessToken = nil
+    delegate?.tokenManagerDidUpdateTokens(accessToken: self.accessToken, refreshToken: self.refreshToken)
+  }
+
+  public func removeRefreshToken() {
+    refreshToken = nil
+    delegate?.tokenManagerDidUpdateTokens(accessToken: self.accessToken, refreshToken: self.refreshToken)
+  }
+  
+  public func removeTokens() {
+    self.removeAccessToken()
     refreshToken = nil
     delegate?.tokenManagerDidUpdateTokens(accessToken: self.accessToken, refreshToken: self.refreshToken)
     handlePendingRequests(with: .noCredentials)
@@ -151,9 +161,6 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
       switch result {
       case .success(let tokens):
         self.setRefreshedTokens(accessToken: tokens.0, refreshToken: tokens.1)
-      case .failure(.loginCancelled):
-        self.isAuthenticating = false
-        self.handlePendingRequests(with: .loginCancelled)
       case let .failure(error):
         self.isAuthenticating = false
         self.handlePendingRequests(with: error)

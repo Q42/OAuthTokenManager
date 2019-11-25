@@ -7,9 +7,7 @@
 
 import Foundation
 
-enum MockError: Error {
-  case unknown
-}
+struct MockError: Error {}
 typealias AccessToken = String
 typealias RefreshToken = String
 typealias MockResult = Int
