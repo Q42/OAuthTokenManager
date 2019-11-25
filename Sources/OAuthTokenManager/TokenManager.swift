@@ -20,7 +20,6 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
   
   public weak var delegate: Delegate?
 
-  // TODO: Fix multithreading
   private var pendingRequests: [QueuedHandler] = []
   private var isAuthenticating: Bool = false
   
