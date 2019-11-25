@@ -6,6 +6,7 @@
 //
 
 import XCTest
+@testable import OAuthTokenManager
 
 final class MockDelegate: TokenManagerDelegate {
   typealias AccessToken = String

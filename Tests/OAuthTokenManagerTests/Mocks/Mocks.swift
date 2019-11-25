@@ -6,6 +6,7 @@
 //
 
 import Foundation
+@testable import OAuthTokenManager
 
 struct MockError: Error {}
 typealias AccessToken = String
