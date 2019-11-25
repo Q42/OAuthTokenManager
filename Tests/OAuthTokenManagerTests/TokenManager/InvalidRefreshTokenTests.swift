@@ -102,12 +102,6 @@ final class InvalidRefreshTokenTests: XCTestCase {
       return .failure(.unauthorized)
     }
 
-    // we expect that the tokens are removed
-    delegate.addHandlerForUpdateToken(description: "Removed tokens") { (accessToken, refreshToken) in
-      XCTAssertEqual(accessToken, nil)
-      XCTAssertEqual(refreshToken, nil)
-    }
-
     delegate.addHandlerForRequireLogin(description: "Requires login") {
       return .success((self.newAccessToken, self.newRefreshToken))
     }
@@ -140,12 +134,6 @@ final class InvalidRefreshTokenTests: XCTestCase {
       return .failure(.unauthorized)
     }
 
-    // we expect that the tokens are removed
-    delegate.addHandlerForUpdateToken(description: "Removed tokens") { (accessToken, refreshToken) in
-      XCTAssertEqual(accessToken, nil)
-      XCTAssertEqual(refreshToken, nil)
-    }
-
     // we'll let the login fail
     delegate.addHandlerForRequireLogin(description: "Requires login") {
       return .failure(.other(MockError()))
@@ -154,6 +142,8 @@ final class InvalidRefreshTokenTests: XCTestCase {
     manager.withAccessToken(action: { (accessToken, callback ) in
       XCTFail("Should never be called")
     }, completion: { (result: Result<MockResult, AuthError>) in
+      // refresh token should not be invalidated
+      XCTAssertNotNil(self.manager.refreshToken)
       if case let .failure(.other(error)) = result, let _ = error as? MockError {
         expec.fulfill()
       }

@@ -22,9 +22,12 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
 
   private var pendingRequests: [QueuedHandler] = []
   private var isAuthenticating: Bool = false
-  
-  private var refreshToken: RefreshToken?
-  private var accessToken: AccessToken?
+
+  /** Won't be set to nil if it's invalid */
+  private(set) public var refreshToken: RefreshToken?
+
+  /** Can be set to nil when it is invalid **/
+  private(set) public var accessToken: AccessToken?
       
   public init(accessToken: AccessToken?, refreshToken: RefreshToken?) {
     self.accessToken = accessToken
@@ -55,6 +58,7 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
   
   public func removeTokens() {
     self.removeAccessToken()
+    accessToken = nil
     refreshToken = nil
     delegate?.tokenManagerDidUpdateTokens(accessToken: self.accessToken, refreshToken: self.refreshToken)
     handlePendingRequests(with: .noCredentials)
@@ -161,9 +165,6 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
         case .success(let tokens):
           self.setRefreshedTokens(accessToken: tokens.0, refreshToken: tokens.1)
         case .failure(.unauthorized):
-          self.accessToken = nil
-          self.refreshToken = nil
-          self.delegate?.tokenManagerDidUpdateTokens(accessToken: self.accessToken, refreshToken: self.refreshToken)
           self.login()
         case .failure(let error):
           self.handlePendingRequests(with: error)
