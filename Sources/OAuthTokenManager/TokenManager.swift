@@ -69,67 +69,77 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
       return print("OAuthTokenManager: No delegate has been set")
     }
 
-    guard !isAuthenticating else {
-      addToQueue(action: action, completion: completion)
-      return
-    }
+    runOnMainAsync {
 
-    guard let accessToken = accessToken else {
-      // we're not authorized anymore, add the request to the queue and start authenticating
-      self.addToQueue(action: action, completion: completion)
-      self.refreshAccessToken()
-      return
-    }
+      guard !self.isAuthenticating else {
+        self.addToQueue(action: action, completion: completion)
+        return
+      }
 
-    func onTokenExpired() {
-      // we're not authorized anymore, add the request to the queue and start authenticating
-      self.accessToken = nil
-      self.delegate?.tokenManagerDidUpdateTokens(accessToken: self.accessToken, refreshToken: self.refreshToken)
-      self.addToQueue(action: action, completion: completion)
-      self.refreshAccessToken()
-    }
+      guard let accessToken = self.accessToken else {
+        // we're not authorized anymore, add the request to the queue and start authenticating
+        self.addToQueue(action: action, completion: completion)
+        self.refreshAccessToken()
+        return
+      }
 
-    guard !delegate.tokenManagerShouldTokenExpire(accessToken: accessToken) else {
-      return onTokenExpired()
-    }
-    
-    action(accessToken) { result in
-      switch result {
-      case .success(let value):
-        completion(.success(value))
-      case .failure(.unauthorized):
-        onTokenExpired()
-      case .failure(let error):
-        completion(.failure(error))
+      func onTokenExpired() {
+        // we're not authorized anymore, add the request to the queue and start authenticating
+        self.accessToken = nil
+        self.delegate?.tokenManagerDidUpdateTokens(accessToken: self.accessToken, refreshToken: self.refreshToken)
+        self.addToQueue(action: action, completion: completion)
+        self.refreshAccessToken()
+      }
+
+      guard !delegate.tokenManagerShouldTokenExpire(accessToken: accessToken) else {
+        return onTokenExpired()
+      }
+
+      action(accessToken) { result in
+        switch result {
+        case .success(let value):
+          completion(.success(value))
+        case .failure(.unauthorized):
+          onTokenExpired()
+        case .failure(let error):
+          completion(.failure(error))
+        }
       }
     }
   }
     
   private func handlePendingRequests(with token: AccessToken) {
-    let items = Array(pendingRequests)
-    pendingRequests.removeAll()
-    items.forEach { $0(.success(token)) }
+    runOnMainAsync {
+      let items = Array(self.pendingRequests)
+      self.pendingRequests.removeAll()
+      items.forEach { $0(.success(token)) }
+    }
   }
     
   private func handlePendingRequests(with error: AuthError) {
-    let items = Array(pendingRequests)
-    pendingRequests.removeAll()
-    items.forEach { $0(.failure(error)) }
+    runOnMainAsync {
+      let items = Array(self.pendingRequests)
+      self.pendingRequests.removeAll()
+      items.forEach { $0(.failure(error)) }
+    }
   }
 
   private func addToQueue<Success>(
     action: @escaping Action<Success>,
     completion: @escaping ActionCompletionHandler<Success>
   ) {
-    let queuedHandler: QueuedHandler = { result in
-      switch result {
-      case let .success(token):
-        action(token) { completion($0) }
-      case let .failure(error):
-        completion(.failure(error))
+    runOnMainAsync {
+      let queuedHandler: QueuedHandler = { result in
+        switch result {
+        case let .success(token):
+          action(token) { completion($0) }
+        case let .failure(error):
+          completion(.failure(error))
+        }
       }
+
+      self.pendingRequests.append(queuedHandler)
     }
-    pendingRequests.append(queuedHandler)
   }
   
   private func refreshAccessToken() {
@@ -141,30 +151,44 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
     }
         
     delegate?.tokenManagerRequiresRefresh(refreshToken: refreshToken) { result in
-      switch result {
-      case .success(let tokens):
-        self.setRefreshedTokens(accessToken: tokens.0, refreshToken: tokens.1)
-      case .failure(.unauthorized):
-        self.accessToken = nil
-        self.refreshToken = nil
-        self.delegate?.tokenManagerDidUpdateTokens(accessToken: self.accessToken, refreshToken: self.refreshToken)
-        self.login()
-      case .failure(let error):
-        self.handlePendingRequests(with: error)
-        self.isAuthenticating = false
+      runOnMainAsync {
+        switch result {
+        case .success(let tokens):
+          self.setRefreshedTokens(accessToken: tokens.0, refreshToken: tokens.1)
+        case .failure(.unauthorized):
+          self.accessToken = nil
+          self.refreshToken = nil
+          self.delegate?.tokenManagerDidUpdateTokens(accessToken: self.accessToken, refreshToken: self.refreshToken)
+          self.login()
+        case .failure(let error):
+          self.handlePendingRequests(with: error)
+          self.isAuthenticating = false
+        }
       }
     }
   }
   
   private func login() {
     delegate?.tokenManagerRequiresLogin { [self] result in
-      switch result {
-      case .success(let tokens):
-        self.setRefreshedTokens(accessToken: tokens.0, refreshToken: tokens.1)
-      case let .failure(error):
-        self.isAuthenticating = false
-        self.handlePendingRequests(with: error)
+      runOnMainAsync {
+        switch result {
+        case .success(let tokens):
+          self.setRefreshedTokens(accessToken: tokens.0, refreshToken: tokens.1)
+        case let .failure(error):
+          self.isAuthenticating = false
+          self.handlePendingRequests(with: error)
+        }
       }
+    }
+  }
+}
+
+private func runOnMainAsync(block: @escaping () -> Void) {
+  if Thread.isMainThread {
+    block()
+  } else {
+    DispatchQueue.main.async {
+      block()
     }
   }
 }
