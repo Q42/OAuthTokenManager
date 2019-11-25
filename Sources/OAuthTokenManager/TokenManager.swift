@@ -7,7 +7,8 @@
 
 import Foundation
 
-open class TokenManager<Delegate: TokenManagerDelegate> {
+open class TokenManager<Delegate: TokenManagerDelegate, Storage: TokenManagerStorage> where Delegate.AccessToken == Storage.AccessToken, Delegate.RefreshToken == Storage.RefreshToken {
+
   public typealias AccessToken = Delegate.AccessToken
   public typealias RefreshToken = Delegate.RefreshToken
 
@@ -19,51 +20,63 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
   public typealias ActionCompletionHandler<Success> = (ActionResult<Success>) -> Void
   
   public weak var delegate: Delegate?
+  private let storage: Storage
 
   private var pendingRequests: [QueuedHandler] = []
-  private var isAuthenticating: Bool = false
 
-  /** Won't be set to nil if it's invalid */
-  private(set) public var refreshToken: RefreshToken?
+  private(set) public var state: TokenManagerState {
+    didSet {
+      if oldValue != state {
+        delegate?.tokenManagerDidUpdateState(state: state)
+      }
+    }
+  }
 
-  /** Can be set to nil when it is invalid **/
-  private(set) public var accessToken: AccessToken?
+  private var isAuthenticating: Bool {
+    switch state {
+    case .refreshing, .reauthorizing: return true
+    case .unauthorized, .authorized: return false
+    }
+  }
       
-  public init(accessToken: AccessToken?, refreshToken: RefreshToken?) {
-    self.accessToken = accessToken
-    self.refreshToken = refreshToken
+  public init(storage: Storage) {
+    self.storage = storage
+    self.state = storage.accessToken == nil && storage.refreshToken == nil ? .unauthorized : .authorized
   }
-  
+
   public func isLoggedIn() -> Bool {
-    refreshToken != nil
+    switch state {
+    case .authorized, .refreshing, .reauthorizing:
+      return true
+    case .unauthorized:
+      return false
+    }
   }
-  
-  public func setRefreshedTokens(accessToken: AccessToken, refreshToken: RefreshToken) {
-    self.accessToken = accessToken
-    self.refreshToken = refreshToken
-    delegate?.tokenManagerDidUpdateTokens(accessToken: self.accessToken, refreshToken: self.refreshToken)
-    isAuthenticating = false
+
+  /** Registers the tokens. This will resume all pending actions with the given accessToken  */
+  public func authorize(accessToken: AccessToken, refreshToken: RefreshToken) {
+    storage.accessToken = accessToken
+    storage.refreshToken = refreshToken
+    state = .authorized
     handlePendingRequests(with: accessToken)
   }
 
-  public func removeAccessToken() {
-    accessToken = nil
-    delegate?.tokenManagerDidUpdateTokens(accessToken: self.accessToken, refreshToken: self.refreshToken)
+  /** call this to abort the authorization. This will resolve all pending actions with the given error */
+  public func abortAuthorization(with error: AuthError = .cancelled) {
+    if state == .reauthorizing {
+      // TODO: klopt dit?
+      state = .unauthorized
+      self.handlePendingRequests(with: error)
+    }
   }
 
-  public func removeRefreshToken() {
-    refreshToken = nil
-    delegate?.tokenManagerDidUpdateTokens(accessToken: self.accessToken, refreshToken: self.refreshToken)
-  }
-  
-  public func removeTokens() {
-    self.removeAccessToken()
-    accessToken = nil
-    refreshToken = nil
-    delegate?.tokenManagerDidUpdateTokens(accessToken: self.accessToken, refreshToken: self.refreshToken)
+  public func logout() {
+    storage.accessToken = nil
+    storage.refreshToken = nil
+    state = .unauthorized
     handlePendingRequests(with: .noCredentials)
   }
-    
+
   public func withAccessToken<Success>(
     action: @escaping Action<Success>,
     completion: @escaping ActionCompletionHandler<Success>
@@ -79,7 +92,7 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
         return
       }
 
-      guard let accessToken = self.accessToken else {
+      guard let accessToken = self.storage.accessToken else {
         // we're not authorized anymore, add the request to the queue and start authenticating
         self.addToQueue(action: action, completion: completion)
         self.refreshAccessToken()
@@ -88,8 +101,6 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
 
       func onTokenExpired() {
         // we're not authorized anymore, add the request to the queue and start authenticating
-        self.accessToken = nil
-        self.delegate?.tokenManagerDidUpdateTokens(accessToken: self.accessToken, refreshToken: self.refreshToken)
         self.addToQueue(action: action, completion: completion)
         self.refreshAccessToken()
       }
@@ -153,39 +164,31 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
   
   private func refreshAccessToken() {
     guard !isAuthenticating else { return }
-    isAuthenticating = true
-    
-    guard let refreshToken = refreshToken else {
-      return self.login()
+    state = .refreshing
+    storage.accessToken = nil
+
+    guard let refreshToken = storage.refreshToken else {
+      return self.reauthorize()
     }
         
     delegate?.tokenManagerRequiresRefresh(refreshToken: refreshToken) { result in
       runOnMainAsync {
         switch result {
         case .success(let tokens):
-          self.setRefreshedTokens(accessToken: tokens.0, refreshToken: tokens.1)
+          self.authorize(accessToken: tokens.0, refreshToken: tokens.1)
         case .failure(.unauthorized):
-          self.login()
+          self.reauthorize()
         case .failure(let error):
+          self.state = .authorized
           self.handlePendingRequests(with: error)
-          self.isAuthenticating = false
         }
       }
     }
   }
   
-  private func login() {
-    delegate?.tokenManagerRequiresLogin { [self] result in
-      runOnMainAsync {
-        switch result {
-        case .success(let tokens):
-          self.setRefreshedTokens(accessToken: tokens.0, refreshToken: tokens.1)
-        case let .failure(error):
-          self.isAuthenticating = false
-          self.handlePendingRequests(with: error)
-        }
-      }
-    }
+  private func reauthorize() {
+    state = .reauthorizing
+    delegate?.tokenManagerRequiresAuthorization()
   }
 }
 

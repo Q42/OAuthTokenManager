@@ -14,16 +14,14 @@ final class MockDelegate: TokenManagerDelegate {
 
   typealias ExpectationGenerator = (String) -> XCTestExpectation
   
-  typealias UpdateTokenHandler = (String?, String?) -> Void
   typealias RequiresRefreshHandler = (RefreshToken) -> RefreshResult
-  typealias RequiresLoginHandler = () -> LoginResult
+  typealias RequiresAuthorizationHandler = () -> Void
   typealias ShouldExpireHandler = (AccessToken) -> Bool
-  
-  private var updateTokenHandlers: [(UpdateTokenHandler, XCTestExpectation)] = []
+
   private var requiresRefreshHandlers: [(RequiresRefreshHandler, XCTestExpectation)] = []
-  private var requiresLoginHandlers: [(RequiresLoginHandler, XCTestExpectation)] = []
+  private var requiresLoginHandlers: [(RequiresAuthorizationHandler, XCTestExpectation)] = []
   private var shouldExpireHandlers: [(ShouldExpireHandler, XCTestExpectation)] = []
-  
+
   private let expectation: ExpectationGenerator
   
   init(expectation: @escaping ExpectationGenerator) {
@@ -31,14 +29,8 @@ final class MockDelegate: TokenManagerDelegate {
   }
   
   var allExpectations: [XCTestExpectation] = []
-  
-  func addHandlerForUpdateToken(description: String, handler: @escaping UpdateTokenHandler) {
-    let expec = expectation(description)
-    updateTokenHandlers.append((handler, expec))
-    allExpectations.append(expec)
-  }
-  
-  func addHandlerForRequireLogin(description: String, handler: @escaping RequiresLoginHandler
+
+  func addHandlerForRequireAuthorization(description: String, handler: @escaping RequiresAuthorizationHandler
   ) {
     let expec = expectation(description)
     requiresLoginHandlers.append((handler, expec))
@@ -56,26 +48,14 @@ final class MockDelegate: TokenManagerDelegate {
     shouldExpireHandlers.append((handler, expec))
     allExpectations.append(expec)
   }
-  
-  func tokenManagerDidUpdateTokens(accessToken: AccessToken?, refreshToken: RefreshToken?) {
-    guard let (handler, expec) = updateTokenHandlers.first else {
-      return XCTFail("No handler for tokenManagerDidUpdateTokens. Been called too many times")
-    }
-    _ = updateTokenHandlers.removeFirst()
-    handler(accessToken, refreshToken)
-    expec.fulfill()
-  }
-  
-  func tokenManagerRequiresLogin(completion: @escaping LoginCompletionHandler) {
+
+  func tokenManagerRequiresAuthorization() {
     guard let (handler, expec) = requiresLoginHandlers.first else {
       return XCTFail("No handler for tokenManagerRequiresLogin. Been called too many times")
     }
     _ = requiresLoginHandlers.removeFirst()
-
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-      completion(handler())
-      expec.fulfill()
-    }
+    handler()
+    expec.fulfill()
   }
   
   func tokenManagerRequiresRefresh(refreshToken: RefreshToken, completion: @escaping RefreshCompletionHandler) {
@@ -98,5 +78,8 @@ final class MockDelegate: TokenManagerDelegate {
     _ = shouldExpireHandlers.removeFirst()
     expec.fulfill()
     return handler(accessToken)
+  }
+
+  func tokenManagerDidUpdateState(state: TokenManagerState) {
   }
 }

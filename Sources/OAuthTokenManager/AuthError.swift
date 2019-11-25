@@ -10,5 +10,6 @@ import Foundation
 public enum AuthError: Error {
   case unauthorized
   case noCredentials
+  case cancelled
   case other(Error)
 }

@@ -14,11 +14,13 @@ final class InvalidAccessTokenTests: XCTestCase {
   let initialRefreshToken: RefreshToken = "rtoken-1"
   let newAccessToken = "atoken-2"
   let newRefreshToken = "rtoken-2"
-  var manager: TokenManager<MockDelegate>!
+  var manager: TokenManager<MockDelegate, MockStorage>!
+  var storage: MockStorage!
   var delegate: MockDelegate!
 
   override func setUp() {
-    manager = TokenManager(accessToken: initialAccessToken, refreshToken: initialRefreshToken)
+    storage = MockStorage(accessToken: initialAccessToken, refreshToken: initialRefreshToken)
+    manager = TokenManager(storage: storage)
     delegate = MockDelegate(expectation: expectation(description:))
     manager.delegate = delegate
   }
@@ -32,34 +34,26 @@ final class InvalidAccessTokenTests: XCTestCase {
       return false
     }
 
-    // we expect that the access token is removed and the refresh token is still the same
-    delegate.addHandlerForUpdateToken(description: "Remove accesstoken") { (accessToken, refreshToken) in
-      XCTAssertEqual(accessToken, nil)
-      XCTAssertEqual(refreshToken, self.initialRefreshToken)
-    }
-
     // we expect to be requested to refresh the accesstoken
     delegate.addHandlerForRequireRefresh(description: "refresh token") { refreshToken in
+      XCTAssertNil(self.storage.accessToken)
+      XCTAssertEqual(self.manager.state, .refreshing)
       XCTAssertEqual(refreshToken, self.initialRefreshToken)
       return .success((self.newAccessToken, self.newRefreshToken))
     }
 
-    // we expect to receive the updated tokens
-    delegate.addHandlerForUpdateToken(description: "Updated tokens") { (accessToken, refreshToken) in
-      XCTAssertEqual(accessToken, self.newAccessToken)
-      XCTAssertEqual(refreshToken, self.newRefreshToken)
-    }
-
     manager.withAccessToken(action: { (accessToken, callback ) in
       if accessToken == self.initialAccessToken {
-        // first attempt
+        // we'll mock that the api returns unauthorized
         callback(.failure(.unauthorized))
       } else if accessToken == self.newAccessToken {
         // attempt with updated token
+        XCTAssertEqual(self.manager.state, .authorized)
         callback(.success(1))
       }
     }, completion: { (result: Result<MockResult, AuthError>) in
       XCTAssertEqual(try? result.get(), 1)
+      XCTAssertEqual(self.manager.state, .authorized)
       expec.fulfill()
     })
 
@@ -75,29 +69,26 @@ final class InvalidAccessTokenTests: XCTestCase {
       return true
     }
 
-    // we expect that the access token is removed and the refresh token is still the same
-    delegate.addHandlerForUpdateToken(description: "Remove accesstoken") { (accessToken, refreshToken) in
-      XCTAssertEqual(accessToken, nil)
-      XCTAssertEqual(refreshToken, self.initialRefreshToken)
-    }
-
     // we expect to be requested to refresh the accesstoken
     delegate.addHandlerForRequireRefresh(description: "refresh token") { refreshToken in
+      XCTAssertNil(self.storage.accessToken)
+      XCTAssertEqual(self.manager.state, .refreshing)
       XCTAssertEqual(refreshToken, self.initialRefreshToken)
       return .success((self.newAccessToken, self.newRefreshToken))
     }
 
-    // we expect to receive the updated tokens
-    delegate.addHandlerForUpdateToken(description: "Updated tokens") { (accessToken, refreshToken) in
-      XCTAssertEqual(accessToken, self.newAccessToken)
-      XCTAssertEqual(refreshToken, self.newRefreshToken)
-    }
-
     manager.withAccessToken(action: { (accessToken, callback ) in
-      XCTAssertEqual(accessToken, self.newAccessToken)
-      callback(.success(1))
+      if accessToken == self.initialAccessToken {
+        // we'll mock that the api returns unauthorized
+        callback(.failure(.unauthorized))
+      } else if accessToken == self.newAccessToken {
+        // attempt with updated token
+        XCTAssertEqual(self.manager.state, .authorized)
+        callback(.success(1))
+      }
     }, completion: { (result: Result<MockResult, AuthError>) in
       XCTAssertEqual(try? result.get(), 1)
+      XCTAssertEqual(self.manager.state, .authorized)
       expec.fulfill()
     })
 
@@ -107,27 +98,13 @@ final class InvalidAccessTokenTests: XCTestCase {
   func testNoAccessTokenAndRefreshSuccess() {
     let expec = expectation(description: "completed")
 
-    // we expect that the access token is removed by calling removeAccessToken
-    // and the refresh token is still the same
-    delegate.addHandlerForUpdateToken(description: "Remove accesstoken") { (accessToken, refreshToken) in
-      XCTAssertEqual(accessToken, nil)
-      XCTAssertEqual(refreshToken, self.initialRefreshToken)
-    }
+    // lets clear the access token
+    storage.accessToken = nil
 
     // we expect to be requested to refresh the accesstoken
     delegate.addHandlerForRequireRefresh(description: "refresh token") { refreshToken in
-      XCTAssertEqual(refreshToken, self.initialRefreshToken)
       return .success((self.newAccessToken, self.newRefreshToken))
     }
-
-    // we expect to receive the updated tokens
-    delegate.addHandlerForUpdateToken(description: "Updated tokens") { (accessToken, refreshToken) in
-      XCTAssertEqual(accessToken, self.newAccessToken)
-      XCTAssertEqual(refreshToken, self.newRefreshToken)
-    }
-
-    // lets clear the access token
-    manager.removeAccessToken()
 
     manager.withAccessToken(action: { (accessToken, callback ) in
       XCTAssertEqual(accessToken, self.newAccessToken)
@@ -149,12 +126,6 @@ final class InvalidAccessTokenTests: XCTestCase {
       return true
     }
 
-    // we expect that the access token is removed and the refresh token is still the same
-    delegate.addHandlerForUpdateToken(description: "Remove accesstoken") { (accessToken, refreshToken) in
-      XCTAssertEqual(accessToken, nil)
-      XCTAssertEqual(refreshToken, self.initialRefreshToken)
-    }
-
     // our refresh call returns a new token
     // should only be called once
     delegate.addHandlerForRequireRefresh(description: "refresh token") { refreshToken in
@@ -162,14 +133,9 @@ final class InvalidAccessTokenTests: XCTestCase {
       return .success((self.newAccessToken, self.newRefreshToken))
     }
 
-    // we expect that the tokens are updated
-    delegate.addHandlerForUpdateToken(description: "Received updated tokens") { (accessToken, refreshToken) in
-      XCTAssertEqual(accessToken, self.newAccessToken)
-      XCTAssertEqual(refreshToken, self.newRefreshToken)
-    }
-
     manager.withAccessToken(action: { (accessToken, callback ) in
       XCTAssertEqual(accessToken, self.newAccessToken)
+      XCTAssertEqual(self.manager.state, .authorized)
       callback(.success(1))
     }, completion: { (result: Result<MockResult, AuthError>) in
       XCTAssertEqual(try? result.get(), 1)
@@ -178,6 +144,7 @@ final class InvalidAccessTokenTests: XCTestCase {
 
     manager.withAccessToken(action: { (accessToken, callback ) in
       XCTAssertEqual(accessToken, self.newAccessToken)
+      XCTAssertEqual(self.manager.state, .authorized)
       callback(.success(2))
     }, completion: { (result: Result<MockResult, AuthError>) in
       XCTAssertEqual(try? result.get(), 2)
@@ -197,23 +164,10 @@ final class InvalidAccessTokenTests: XCTestCase {
       return true
     }
 
-    // we expect that the access token is removed and the refresh token is still the same
-    delegate.addHandlerForUpdateToken(description: "Remove accesstoken") { (accessToken, refreshToken) in
-      XCTAssertEqual(accessToken, nil)
-      XCTAssertEqual(refreshToken, self.initialRefreshToken)
-    }
-
     // our refresh call returns a new token
     // should only be called once
     delegate.addHandlerForRequireRefresh(description: "refresh token") { refreshToken in
-      XCTAssertEqual(refreshToken, self.initialRefreshToken)
       return .success((self.newAccessToken, self.newRefreshToken))
-    }
-
-    // we expect that the tokens are updated
-    delegate.addHandlerForUpdateToken(description: "Received updated tokens") { (accessToken, refreshToken) in
-      XCTAssertEqual(accessToken, self.newAccessToken)
-      XCTAssertEqual(refreshToken, self.newRefreshToken)
     }
 
     DispatchQueue.global().async {

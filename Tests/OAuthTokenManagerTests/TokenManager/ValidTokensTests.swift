@@ -5,11 +5,13 @@ final class ValidTokensTests: XCTestCase {
   
   var initialAccessToken: AccessToken = "atoken-1"
   var initialRefreshToken: RefreshToken = "rtoken-1"
-  var manager: TokenManager<MockDelegate>!
+  var manager: TokenManager<MockDelegate, MockStorage>!
+  var storage: MockStorage!
   var delegate: MockDelegate!
   
   override func setUp() {
-    manager = TokenManager(accessToken: initialAccessToken, refreshToken: initialRefreshToken)
+    storage = MockStorage(accessToken: initialAccessToken, refreshToken: initialRefreshToken)
+    manager = TokenManager(storage: storage)
     delegate = MockDelegate(expectation: expectation(description:))
     manager.delegate = delegate
 
@@ -22,7 +24,7 @@ final class ValidTokensTests: XCTestCase {
   
   func testActionSuccess() {
     let expec = expectation(description: "completed")
-    
+
     manager.withAccessToken(action: { (accessToken, callback ) in
       XCTAssertEqual(accessToken, self.initialAccessToken)
       // we will just return a result
@@ -52,15 +54,9 @@ final class ValidTokensTests: XCTestCase {
   }
 
   func testActionShouldBeRunWithoutRefreshToken() {
+    storage.refreshToken = nil
+
     let expec = expectation(description: "completed")
-
-    // we expect to receive the updated tokens for removing the refresh token
-    delegate.addHandlerForUpdateToken(description: "Updated Refresh Token") { (accessToken, refreshToken) in
-      XCTAssertEqual(accessToken, self.initialAccessToken)
-      XCTAssertNil(refreshToken)
-    }
-
-    manager.removeRefreshToken()
 
     manager.withAccessToken(action: { (accessToken, callback ) in
       XCTAssertEqual(accessToken, self.initialAccessToken)
