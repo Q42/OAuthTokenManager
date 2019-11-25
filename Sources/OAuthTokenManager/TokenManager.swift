@@ -7,8 +7,7 @@
 
 import Foundation
 
-open class TokenManager<Delegate: TokenManagerDelegate, Storage: TokenManagerStorage> where Delegate.AccessToken == Storage.AccessToken, Delegate.RefreshToken == Storage.RefreshToken {
-
+open class TokenManager<Delegate: TokenManagerDelegate> {
   public typealias AccessToken = Delegate.AccessToken
   public typealias RefreshToken = Delegate.RefreshToken
 
@@ -20,7 +19,9 @@ open class TokenManager<Delegate: TokenManagerDelegate, Storage: TokenManagerSto
   public typealias ActionCompletionHandler<Success> = (ActionResult<Success>) -> Void
   
   public weak var delegate: Delegate?
-  private let storage: Storage
+
+  private(set) public var accessToken: AccessToken?
+  private(set) public var refreshToken: RefreshToken?
 
   private var pendingRequests: [QueuedHandler] = []
 
@@ -39,9 +40,10 @@ open class TokenManager<Delegate: TokenManagerDelegate, Storage: TokenManagerSto
     }
   }
       
-  public init(storage: Storage) {
-    self.storage = storage
-    self.state = storage.accessToken == nil && storage.refreshToken == nil ? .unauthorized : .authorized
+  public init(accessToken: AccessToken?, refreshToken: RefreshToken?) {
+    self.accessToken = accessToken
+    self.refreshToken = refreshToken
+    self.state = accessToken == nil && refreshToken == nil ? .unauthorized : .authorized
   }
 
   public func isLoggedIn() -> Bool {
@@ -55,8 +57,7 @@ open class TokenManager<Delegate: TokenManagerDelegate, Storage: TokenManagerSto
 
   /** Registers the tokens. This will resume all pending actions with the given accessToken  */
   public func authorize(accessToken: AccessToken, refreshToken: RefreshToken) {
-    storage.accessToken = accessToken
-    storage.refreshToken = refreshToken
+    setTokens(accessToken: accessToken, refreshToken: refreshToken)
     state = .authorized
     handlePendingRequests(with: accessToken)
   }
@@ -71,10 +72,24 @@ open class TokenManager<Delegate: TokenManagerDelegate, Storage: TokenManagerSto
   }
 
   public func logout() {
-    storage.accessToken = nil
-    storage.refreshToken = nil
+    setTokens(accessToken: nil, refreshToken: nil)
     state = .unauthorized
     handlePendingRequests(with: .noCredentials)
+  }
+
+  /** Sets a new refreshToken, this won't rerun queued actions */
+  public func setRefreshToken(_ refreshToken: RefreshToken?) {
+    setTokens(accessToken: accessToken, refreshToken: refreshToken)
+  }
+
+  public func setAccessToken(_ accessToken: AccessToken?) {
+    setTokens(accessToken: accessToken, refreshToken: refreshToken)
+  }
+
+  private func setTokens(accessToken: AccessToken?, refreshToken: RefreshToken?) {
+    self.accessToken = accessToken
+    self.refreshToken = refreshToken
+    delegate?.tokenManagerDidUpdateTokens(accessToken: accessToken, refreshToken: refreshToken)
   }
 
   public func withAccessToken<Success>(
@@ -92,7 +107,7 @@ open class TokenManager<Delegate: TokenManagerDelegate, Storage: TokenManagerSto
         return
       }
 
-      guard let accessToken = self.storage.accessToken else {
+      guard let accessToken = self.accessToken else {
         // we're not authorized anymore, add the request to the queue and start authenticating
         self.addToQueue(action: action, completion: completion)
         self.refreshAccessToken()
@@ -165,9 +180,9 @@ open class TokenManager<Delegate: TokenManagerDelegate, Storage: TokenManagerSto
   private func refreshAccessToken() {
     guard !isAuthenticating else { return }
     state = .refreshing
-    storage.accessToken = nil
+    setTokens(accessToken: nil, refreshToken: self.refreshToken)
 
-    guard let refreshToken = storage.refreshToken else {
+    guard let refreshToken = self.refreshToken else {
       return self.reauthorize()
     }
         

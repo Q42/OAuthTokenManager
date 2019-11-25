@@ -82,4 +82,6 @@ final class MockDelegate: TokenManagerDelegate {
 
   func tokenManagerDidUpdateState(state: TokenManagerState) {
   }
+
+  func tokenManagerDidUpdateTokens(accessToken: AccessToken?, refreshToken: RefreshToken?) { }
 }

@@ -14,13 +14,11 @@ final class InvalidRefreshTokenTests: XCTestCase {
   let initialRefreshToken: RefreshToken = "rtoken-1"
   let newAccessToken = "atoken-2"
   let newRefreshToken = "rtoken-2"
-  var manager: TokenManager<MockDelegate, MockStorage>!
-  var storage: MockStorage!
+  var manager: TokenManager<MockDelegate>!
   var delegate: MockDelegate!
 
   override func setUp() {
-    storage = MockStorage(accessToken: initialAccessToken, refreshToken: initialRefreshToken)
-    manager = TokenManager(storage: storage)
+    manager = TokenManager(accessToken: initialAccessToken, refreshToken: initialRefreshToken)
     delegate = MockDelegate(expectation: expectation(description:))
     manager.delegate = delegate
 
@@ -135,8 +133,8 @@ final class InvalidRefreshTokenTests: XCTestCase {
     }, completion: { (result: Result<MockResult, AuthError>) in
       // refresh token should not be removed
       XCTAssertEqual(self.manager.state, .unauthorized)
-      XCTAssertNil(self.storage.accessToken)
-      XCTAssertNotNil(self.storage.refreshToken)
+      XCTAssertNil(self.manager.accessToken)
+      XCTAssertNotNil(self.manager.refreshToken)
       if case let .failure(.other(error)) = result, let _ = error as? MockError {
         expec.fulfill()
       }

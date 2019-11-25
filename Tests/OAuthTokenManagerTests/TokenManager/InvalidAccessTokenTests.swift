@@ -14,13 +14,12 @@ final class InvalidAccessTokenTests: XCTestCase {
   let initialRefreshToken: RefreshToken = "rtoken-1"
   let newAccessToken = "atoken-2"
   let newRefreshToken = "rtoken-2"
-  var manager: TokenManager<MockDelegate, MockStorage>!
-  var storage: MockStorage!
+  var manager: TokenManager<MockDelegate>!
   var delegate: MockDelegate!
 
   override func setUp() {
-    storage = MockStorage(accessToken: initialAccessToken, refreshToken: initialRefreshToken)
-    manager = TokenManager(storage: storage)
+    manager = TokenManager(accessToken: initialAccessToken, refreshToken: initialRefreshToken)
+
     delegate = MockDelegate(expectation: expectation(description:))
     manager.delegate = delegate
   }
@@ -36,7 +35,7 @@ final class InvalidAccessTokenTests: XCTestCase {
 
     // we expect to be requested to refresh the accesstoken
     delegate.addHandlerForRequireRefresh(description: "refresh token") { refreshToken in
-      XCTAssertNil(self.storage.accessToken)
+      XCTAssertNil(self.manager.accessToken)
       XCTAssertEqual(self.manager.state, .refreshing)
       XCTAssertEqual(refreshToken, self.initialRefreshToken)
       return .success((self.newAccessToken, self.newRefreshToken))
@@ -71,7 +70,7 @@ final class InvalidAccessTokenTests: XCTestCase {
 
     // we expect to be requested to refresh the accesstoken
     delegate.addHandlerForRequireRefresh(description: "refresh token") { refreshToken in
-      XCTAssertNil(self.storage.accessToken)
+      XCTAssertNil(self.manager.accessToken)
       XCTAssertEqual(self.manager.state, .refreshing)
       XCTAssertEqual(refreshToken, self.initialRefreshToken)
       return .success((self.newAccessToken, self.newRefreshToken))
@@ -99,7 +98,7 @@ final class InvalidAccessTokenTests: XCTestCase {
     let expec = expectation(description: "completed")
 
     // lets clear the access token
-    storage.accessToken = nil
+    manager.setAccessToken(nil)
 
     // we expect to be requested to refresh the accesstoken
     delegate.addHandlerForRequireRefresh(description: "refresh token") { refreshToken in

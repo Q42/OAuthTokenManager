@@ -21,9 +21,7 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
-		2B21FBE9238C5C890081DFD7 /* TokenManagerStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B21FBE8238C5C890081DFD7 /* TokenManagerStorage.swift */; };
 		2B21FBEB238C5F560081DFD7 /* TokenManagerState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B21FBEA238C5F560081DFD7 /* TokenManagerState.swift */; };
-		2B21FBED238C64200081DFD7 /* MockStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B21FBEC238C64200081DFD7 /* MockStorage.swift */; };
 		OBJ_31 /* AuthError.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_9 /* AuthError.swift */; };
 		OBJ_32 /* TokenManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_10 /* TokenManager.swift */; };
 		OBJ_33 /* TokenManagerDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_11 /* TokenManagerDelegate.swift */; };
@@ -54,9 +52,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		2B21FBE8238C5C890081DFD7 /* TokenManagerStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenManagerStorage.swift; sourceTree = "<group>"; };
 		2B21FBEA238C5F560081DFD7 /* TokenManagerState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenManagerState.swift; sourceTree = "<group>"; };
-		2B21FBEC238C64200081DFD7 /* MockStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockStorage.swift; sourceTree = "<group>"; };
 		"OAuthTokenManager::OAuthTokenManager::Product" /* OAuthTokenManager.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = OAuthTokenManager.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		"OAuthTokenManager::OAuthTokenManagerTests::Product" /* OAuthTokenManagerTests.xctest */ = {isa = PBXFileReference; lastKnownFileType = file; path = OAuthTokenManagerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		OBJ_10 /* TokenManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenManager.swift; sourceTree = "<group>"; };
@@ -114,7 +110,6 @@
 			children = (
 				OBJ_15 /* MockDelegate.swift */,
 				OBJ_16 /* Mocks.swift */,
-				2B21FBEC238C64200081DFD7 /* MockStorage.swift */,
 			);
 			path = Mocks;
 			sourceTree = "<group>";
@@ -164,7 +159,6 @@
 				OBJ_9 /* AuthError.swift */,
 				OBJ_10 /* TokenManager.swift */,
 				OBJ_11 /* TokenManagerDelegate.swift */,
-				2B21FBE8238C5C890081DFD7 /* TokenManagerStorage.swift */,
 				2B21FBEA238C5F560081DFD7 /* TokenManagerState.swift */,
 			);
 			name = OAuthTokenManager;
@@ -256,9 +250,7 @@
 			buildActionMask = 0;
 			files = (
 				OBJ_31 /* AuthError.swift in Sources */,
-				2B21FBE9238C5C890081DFD7 /* TokenManagerStorage.swift in Sources */,
 				OBJ_32 /* TokenManager.swift in Sources */,
-				2B21FBED238C64200081DFD7 /* MockStorage.swift in Sources */,
 				2B21FBEB238C5F560081DFD7 /* TokenManagerState.swift in Sources */,
 				OBJ_33 /* TokenManagerDelegate.swift in Sources */,
 			);

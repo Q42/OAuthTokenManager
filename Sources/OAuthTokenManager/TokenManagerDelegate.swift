@@ -14,6 +14,9 @@ public protocol TokenManagerDelegate: class {
   typealias RefreshResult = Swift.Result<(AccessToken, RefreshToken), AuthError>
   typealias RefreshCompletionHandler = (RefreshResult) -> Void
   
+  /** Will be called whenever the tokens update */
+  func tokenManagerDidUpdateTokens(accessToken: AccessToken?, refreshToken: RefreshToken?)
+
   /** Called when the state of the manager changes */
   func tokenManagerDidUpdateState(state: TokenManagerState)
   

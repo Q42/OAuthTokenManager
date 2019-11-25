@@ -5,13 +5,12 @@ final class ValidTokensTests: XCTestCase {
   
   var initialAccessToken: AccessToken = "atoken-1"
   var initialRefreshToken: RefreshToken = "rtoken-1"
-  var manager: TokenManager<MockDelegate, MockStorage>!
-  var storage: MockStorage!
+  var invalidRefreshToken: RefreshToken = "invalid-refresh-token"
+  var manager: TokenManager<MockDelegate>!
   var delegate: MockDelegate!
   
   override func setUp() {
-    storage = MockStorage(accessToken: initialAccessToken, refreshToken: initialRefreshToken)
-    manager = TokenManager(storage: storage)
+    manager = TokenManager(accessToken: initialAccessToken, refreshToken: initialRefreshToken)
     delegate = MockDelegate(expectation: expectation(description:))
     manager.delegate = delegate
 
@@ -54,8 +53,8 @@ final class ValidTokensTests: XCTestCase {
   }
 
   func testActionShouldBeRunWithoutRefreshToken() {
-    storage.refreshToken = nil
-
+    manager.setRefreshToken(nil)
+    
     let expec = expectation(description: "completed")
 
     manager.withAccessToken(action: { (accessToken, callback ) in
