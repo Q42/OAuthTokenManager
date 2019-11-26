@@ -203,6 +203,7 @@ open class TokenManager<Delegate: TokenManagerDelegate> {
   
   private func reauthorize() {
     state = .reauthorizing
+    setTokens(accessToken: nil, refreshToken: nil)
     delegate?.tokenManagerRequiresAuthorization()
   }
 }

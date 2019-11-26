@@ -44,6 +44,8 @@ final class InvalidRefreshTokenTests: XCTestCase {
       if case let .failure(.other(error)) = result {
         XCTAssertNotNil(error as? MockError)
         XCTAssertEqual(self.manager.state, .authorized)
+        XCTAssertNil(self.manager.accessToken)
+        XCTAssertNotNil(self.manager.refreshToken)
         expec.fulfill()
       }
     })
@@ -106,6 +108,8 @@ final class InvalidRefreshTokenTests: XCTestCase {
     }, completion: { (result: Result<MockResult, AuthError>) in
       XCTAssertEqual(try? result.get(), 1)
       XCTAssertEqual(self.manager.state, .authorized)
+      XCTAssertEqual(self.manager.accessToken, self.newAccessToken)
+      XCTAssertEqual(self.manager.refreshToken, self.newRefreshToken)      
       expec.fulfill()
     })
 
@@ -131,10 +135,9 @@ final class InvalidRefreshTokenTests: XCTestCase {
     manager.withAccessToken(action: { (accessToken, callback ) in
       XCTFail("Should never be called")
     }, completion: { (result: Result<MockResult, AuthError>) in
-      // refresh token should not be removed
       XCTAssertEqual(self.manager.state, .unauthorized)
       XCTAssertNil(self.manager.accessToken)
-      XCTAssertNotNil(self.manager.refreshToken)
+      XCTAssertNil(self.manager.refreshToken)
       if case let .failure(.other(error)) = result, let _ = error as? MockError {
         expec.fulfill()
       }
