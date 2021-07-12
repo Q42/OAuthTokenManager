@@ -7,7 +7,7 @@
 
 import Foundation
 
-public protocol TokenManagerDelegate: class {
+public protocol TokenManagerDelegate: AnyObject {
   associatedtype AccessToken
   associatedtype RefreshToken
       
